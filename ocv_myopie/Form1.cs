@@ -1,21 +1,18 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 using OpenCvSharp;
 using gei1076_tools;
+using System.Drawing;
+using System.Runtime.InteropServices;
 
 namespace ocv_myopie
 {
-    public partial class Form1 : Form
+    public partial class frmMain : Form
     {
         VideoCapture cap = new VideoCapture(0);
         Mat frame = new Mat();
+        Mat imgEInput = new Mat();
+        Mat imgEOutput;
 
         OpenCvSharp.Size kSize;
         double sigma = 0.0;
@@ -27,8 +24,11 @@ namespace ocv_myopie
         private byte[] tableau = new byte[tailleTrame];
 
         int cm = 0;
+        
+        public OpenCvSharp.Size screenResolution;
+        public Vec2f screenDPI;
 
-        public Form1()
+        public frmMain()
         {
             InitializeComponent();
             Binding binding = new Binding("Text", vsbDioptrie, "Value");
@@ -80,11 +80,22 @@ namespace ocv_myopie
             pbCamera.Image = OpenCvSharp.Extensions.BitmapConverter.ToBitmap(frame);
 
             tmrFrame.Enabled = true;
+
+            initSizes();
+
+            initPbSnellen();
         }
 
         private void matToPictureBox(PictureBox pb, Mat img)
         {
-            pb.Image = OpenCvSharp.Extensions.BitmapConverter.ToBitmap(img);
+            try
+            {
+                pb.Image = OpenCvSharp.Extensions.BitmapConverter.ToBitmap(img);
+            } catch (Exception e)
+            {
+                Console.Write(e.Message);
+            }
+
         }
 
         private void tmrFrame_Tick(object sender, EventArgs e)
@@ -172,6 +183,45 @@ namespace ocv_myopie
             }
 
             tmrReception.Enabled = true;
+        }
+
+        private void initPbSnellen()
+        {
+            imgEInput = OpenCvSharp.Extensions.BitmapConverter.ToMat(ressources.Snellen_E);
+
+            imgEOutput = imgEInput.Resize(new OpenCvSharp.Size(0, 0), 88.4 / 109 / 2, 88.4 / 109 / 2);
+            pbSnellen.Image = OpenCvSharp.Extensions.BitmapConverter.ToBitmap(imgEOutput);
+        }
+
+        private void initSizes()
+        {
+            screenResolution.Height = Screen.PrimaryScreen.Bounds.Height;
+            screenResolution.Width = Screen.PrimaryScreen.Bounds.Width;
+
+            Graphics DesktopGraphics = Graphics.FromHdc(GetDC( IntPtr.Zero));
+            
+            screenDPI.Item0 = DesktopGraphics.DpiX;
+            screenDPI.Item1 = DesktopGraphics.DpiY;
+
+            txtResX.Text = screenResolution.Width.ToString();
+            txtResY.Text = screenResolution.Height.ToString();
+
+            txtDpiX.Text = screenDPI.Item0.ToString();
+            txtDpiY.Text = screenDPI.Item1.ToString();
+
+            txtLargeur.Text = (screenResolution.Width / screenDPI.Item0).ToString();
+            txtHauteur.Text = (screenResolution.Height / screenDPI.Item1).ToString();
+        }
+
+        [DllImport("user32.dll", EntryPoint = "GetDC")]
+        public static extern IntPtr GetDC(IntPtr ptr);
+
+        private void resizeImgE()
+        {
+            // 109 <-- nb mm du E sur mon écran de bureau
+            double ratio3m = 88.4 / 109 / 2; // Le E doit mesurer 88.4 mm à 6 m
+
+            imgEOutput = imgEInput.Resize(new OpenCvSharp.Size(0, 0), ratio3m, ratio3m);
         }
     }
 }
