@@ -155,7 +155,7 @@
             // 
             this.label1.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.label1.AutoSize = true;
-            this.label1.Location = new System.Drawing.Point(666, 14);
+            this.label1.Location = new System.Drawing.Point(675, 14);
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(43, 13);
             this.label1.TabIndex = 7;
@@ -176,7 +176,7 @@
             // 
             this.vsbDioptrie.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.vsbDioptrie.LargeChange = 100;
-            this.vsbDioptrie.Location = new System.Drawing.Point(674, 66);
+            this.vsbDioptrie.Location = new System.Drawing.Point(683, 66);
             this.vsbDioptrie.Maximum = 1000;
             this.vsbDioptrie.Name = "vsbDioptrie";
             this.vsbDioptrie.Size = new System.Drawing.Size(26, 207);
@@ -186,7 +186,7 @@
             // txtDioptrie
             // 
             this.txtDioptrie.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.txtDioptrie.Location = new System.Drawing.Point(665, 33);
+            this.txtDioptrie.Location = new System.Drawing.Point(674, 33);
             this.txtDioptrie.Name = "txtDioptrie";
             this.txtDioptrie.Size = new System.Drawing.Size(44, 20);
             this.txtDioptrie.TabIndex = 8;

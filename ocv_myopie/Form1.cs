@@ -17,6 +17,10 @@ namespace ocv_myopie
         OpenCvSharp.Size kSize;
         double sigma = 0.0;
 
+        bool diopDirty = true;
+        double dioptrie = 0;
+        double punctumRemotum = 10000;
+
         PortSerie ps;
         byte octet;
         const int tailleTrame = 2;
@@ -72,12 +76,7 @@ namespace ocv_myopie
             kSize.Height = 1;
             kSize.Width = 1;
             
-            cap.Read(frame);
 
-            Width = frame.Width + 50;
-            Height = frame.Height + 60;
-
-            pbCamera.Image = OpenCvSharp.Extensions.BitmapConverter.ToBitmap(frame);
 
             tmrFrame.Enabled = true;
 
@@ -100,9 +99,33 @@ namespace ocv_myopie
 
         private void tmrFrame_Tick(object sender, EventArgs e)
         {
-            cap.Read(frame);
+            tmrFrame.Enabled = false;
+            if (!chkNoCamera.Checked)
+            {
+                cap.Read(frame);
 
-            matToPictureBox(pbCamera, process(frame));
+
+                Width = frame.Width + 50;
+                Height = frame.Height + 60;
+                pbCamera.Image = OpenCvSharp.Extensions.BitmapConverter.ToBitmap(frame);
+
+                matToPictureBox(pbCamera, process(frame));
+            } else
+            {
+                if (diopDirty)
+                {
+                    diopDirty = false;
+                    
+                    imgEOutput = process(resizeImgE());
+                }
+
+                
+                matToPictureBox(pbSnellen, imgEOutput);
+            }
+
+            
+
+            tmrFrame.Enabled = true;
         }
 
         private void Form1_Paint(object sender, PaintEventArgs e)
@@ -189,7 +212,7 @@ namespace ocv_myopie
         {
             imgEInput = OpenCvSharp.Extensions.BitmapConverter.ToMat(ressources.Snellen_E);
 
-            imgEOutput = imgEInput.Resize(new OpenCvSharp.Size(0, 0), 88.4 / 109 / 2, 88.4 / 109 / 2);
+            imgEOutput = imgEInput.Resize(new OpenCvSharp.Size(0, 0), 88.4 / 97 / 2, 88.4 / 97 / 2);
             pbSnellen.Image = OpenCvSharp.Extensions.BitmapConverter.ToBitmap(imgEOutput);
         }
 
@@ -216,12 +239,61 @@ namespace ocv_myopie
         [DllImport("user32.dll", EntryPoint = "GetDC")]
         public static extern IntPtr GetDC(IntPtr ptr);
 
-        private void resizeImgE()
+        private Mat resizeImgE()
         {
+            // E : 384px x 386px
             // 109 <-- nb mm du E sur mon écran de bureau
-            double ratio3m = 88.4 / 109 / 2; // Le E doit mesurer 88.4 mm à 6 m
+            // 97 <-- nb mm du E sur mon écran de portable
+            double ratio3m = 88.4 / 97 / 2; // Le E doit mesurer 88.4 mm à 6 m
 
-            imgEOutput = imgEInput.Resize(new OpenCvSharp.Size(0, 0), ratio3m, ratio3m);
+            
+            return imgEInput.Resize(new OpenCvSharp.Size(0, 0), ratio3m, ratio3m);
+        }
+
+        private void txtDioptrie_TextChanged(object sender, EventArgs e)
+        {
+            string rawValue = ((TextBox)sender).Text;
+
+            double raw;
+
+            if (double.TryParse(rawValue, out raw)) { 
+                
+                
+                sigma = dyoptrieToSigma(raw);
+
+
+                Console.WriteLine("sigma = " + sigma);
+
+                int tempValue = Math.Max (-(int)(raw * 100), vsbDioptrie.Minimum);
+                vsbDioptrie.Value = Math.Min( tempValue , vsbDioptrie.Maximum);
+                
+                diopDirty = true;
+            }
+
+            
+        }
+
+        private double punctumRemotumToDyoptrie(double pr)
+        {
+            if (pr != 0) return 1 / pr;
+
+            return 10000;
+        }
+
+        private double dioptrieToPunctumRemotum(double dioptrie)
+        {
+            if (dioptrie != 0) return -1.0 / dioptrie;
+
+            return 10000;
+        }
+
+        private double map(double value, double currentMin, double currentMax, double mapMin, double mapMax)
+        {
+            double currentRange = currentMax - currentMin;
+            double mapRange = mapMax - mapMin;
+
+
+            return mapMin + mapRange * ((value - currentMin) / currentRange);
         }
     }
 }
