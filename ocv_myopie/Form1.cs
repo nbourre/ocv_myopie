@@ -4,11 +4,15 @@ using OpenCvSharp;
 using gei1076_tools;
 using System.Drawing;
 using System.Runtime.InteropServices;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ocv_myopie
 {
     public partial class frmMain : Form
     {
+        
+
         VideoCapture cap = new VideoCapture(0);
         Mat frame = new Mat();
         Mat imgEInput = new Mat();
@@ -19,7 +23,8 @@ namespace ocv_myopie
 
         bool diopDirty = true;
         double dioptrie = 0;
-        double punctumRemotum = 10000;
+
+        double hauteurE = 97;
 
         PortSerie ps;
         byte octet;
@@ -28,7 +33,9 @@ namespace ocv_myopie
         private byte[] tableau = new byte[tailleTrame];
 
         int cm = 0;
-        
+        double distanceReference = 3.0; // 3 m
+        double ratioReference = 2; // 6 / 3;
+
         public OpenCvSharp.Size screenResolution;
         public Vec2f screenDPI;
 
@@ -56,15 +63,13 @@ namespace ocv_myopie
 
             sigma = dyoptrieToSigma(raw);
 
-            if (cm > 0)
-            {
-                double metre = cm / 100.0;
 
-            }
+
+            kSize.Width = kSize.Height = (int)(sigma) % 2 == 0 ? (int)sigma + 1 : (int)sigma;
 
             Console.WriteLine("sigma = " + sigma);
- 
 
+            dioptrie = raw;
             e.Value = raw.ToString("0.00");
         }
 
@@ -82,7 +87,7 @@ namespace ocv_myopie
 
             initSizes();
 
-            initPbSnellen();
+            initPictureBoxes();
         }
 
         private void matToPictureBox(PictureBox pb, Mat img)
@@ -96,6 +101,8 @@ namespace ocv_myopie
             }
 
         }
+
+        int cmPrecedent = 0;
 
         private void tmrFrame_Tick(object sender, EventArgs e)
         {
@@ -112,26 +119,24 @@ namespace ocv_myopie
                 matToPictureBox(pbCamera, process(frame));
             } else
             {
-                if (diopDirty)
+                if (diopDirty || cmPrecedent != cm)
                 {
                     diopDirty = false;
                     
                     imgEOutput = process(resizeImgE());
                 }
 
+                cmPrecedent = cm;
                 
                 matToPictureBox(pbSnellen, imgEOutput);
             }
 
-            
+            lblDistance.Text = cm.ToString() + " cm";
 
             tmrFrame.Enabled = true;
         }
 
-        private void Form1_Paint(object sender, PaintEventArgs e)
-        {
 
-        }
 
         private Mat process(Mat src)
         {
@@ -140,20 +145,23 @@ namespace ocv_myopie
 
             Mat result = new Mat();
 
+            if (cm != 0)
+            {
+                double dioptrieSimulee = calculerDioptrieSimulee(-dioptrie, cm / 100.0, distanceReference);
+
+                double sigma = dyoptrieToSigma(dioptrieSimulee);
+
+                kSize.Width = kSize.Height = (int)(sigma) % 2 == 0 ? (int)sigma + 1 : (int)sigma;
+
+                //lblDioptrie.Text = "Je vois comme : " + (-dioptrieSimulee).ToString("0.00");
+            }
+
             Cv2.GaussianBlur(src, result, kSize, sigma);
 
             return result;
         }
 
-        private void vsbDioptrie_Scroll(object sender, ScrollEventArgs e)
-        {
 
-        }
-
-        private void label1_Click(object sender, EventArgs e)
-        {
-
-        }
 
         double dyoptrieToSigma(double dyoptrie)
         {
@@ -174,10 +182,31 @@ namespace ocv_myopie
                 resultat = 7.1401 * dyoptrie + 0.657 - 1;
             }
 
-            kSize.Width = kSize.Height = (int)(resultat) % 2 == 0 ? (int)resultat + 1 : (int)resultat;
+            //kSize.Width = kSize.Height = (int)(resultat) % 2 == 0 ? (int)resultat + 1 : (int)resultat;
 
             return resultat;
 
+        }
+
+        /// <summary>
+        /// Permet de calculer la dioptrie simulée selon une distance donnée
+        /// </summary>
+        /// <param name="dioptrieInitiale"></param>
+        /// <param name="distanceActuelle"></param>
+        /// <param name="distanceInfinie"></param>
+        /// <returns></returns>
+        double calculerDioptrieSimulee (double dioptrieInitiale, double distanceActuelle, double distanceInfinie)
+        {
+            if (dioptrieInitiale == 0) return 0;
+               
+            double pr = -1 / dioptrieInitiale;
+            double sigmaInitiale = -6.921 * dioptrieInitiale * 0.0642;
+            double m = sigmaInitiale / (distanceInfinie - pr);
+            double b = -sigmaInitiale / (distanceInfinie - pr) * pr;
+
+            double dioptrieSimulee = dioptrieInitiale / (distanceInfinie - pr) * distanceActuelle + b;
+
+            return dioptrieSimulee;
         }
 
         private void tmrReception_Tick(object sender, EventArgs e)
@@ -186,6 +215,7 @@ namespace ocv_myopie
 
             tmrReception.Enabled = false;
 
+            int cmTempo = 0;
 
             while (ps.DonneesALire() >= tailleTrame + 2)
             {
@@ -198,9 +228,13 @@ namespace ocv_myopie
                         
                         ps.LireOctets(tableau, 0, tailleTrame);
 
-                        cm = ((int)tableau[0] << 8) + tableau[1];
+                        cmTempo = (tableau[0] << 8) + tableau[1];
 
-                        lblDistance.Text = cm.ToString() + " cm";
+                        if (cmTempo < 1000)
+                        {
+                            cm = cmTempo;
+                        }
+                        
                     }
                 }
             }
@@ -208,12 +242,14 @@ namespace ocv_myopie
             tmrReception.Enabled = true;
         }
 
-        private void initPbSnellen()
+        private void initPictureBoxes()
         {
             imgEInput = OpenCvSharp.Extensions.BitmapConverter.ToMat(ressources.Snellen_E);
+            
+            imgEOutput = imgEInput.Resize(new OpenCvSharp.Size(0, 0), 88.4 / hauteurE / ratioReference, 88.4 / hauteurE / ratioReference);
 
-            imgEOutput = imgEInput.Resize(new OpenCvSharp.Size(0, 0), 88.4 / 97 / 2, 88.4 / 97 / 2);
             pbSnellen.Image = OpenCvSharp.Extensions.BitmapConverter.ToBitmap(imgEOutput);
+            pbEOriginal.Image = OpenCvSharp.Extensions.BitmapConverter.ToBitmap(imgEInput);
         }
 
         private void initSizes()
@@ -233,7 +269,7 @@ namespace ocv_myopie
             txtDpiY.Text = screenDPI.Item1.ToString();
 
             txtLargeur.Text = (screenResolution.Width / screenDPI.Item0).ToString();
-            txtHauteur.Text = (screenResolution.Height / screenDPI.Item1).ToString();
+            txtHauteurEcran.Text = (screenResolution.Height / screenDPI.Item1).ToString();
         }
 
         [DllImport("user32.dll", EntryPoint = "GetDC")]
@@ -244,7 +280,7 @@ namespace ocv_myopie
             // E : 384px x 386px
             // 109 <-- nb mm du E sur mon écran de bureau
             // 97 <-- nb mm du E sur mon écran de portable
-            double ratio3m = 88.4 / 97 / 2; // Le E doit mesurer 88.4 mm à 6 m
+            double ratio3m = 88.4 / hauteurE / ratioReference; // Le E doit mesurer 88.4 mm à 6 m
 
             
             return imgEInput.Resize(new OpenCvSharp.Size(0, 0), ratio3m, ratio3m);
@@ -260,7 +296,7 @@ namespace ocv_myopie
                 
                 
                 sigma = dyoptrieToSigma(raw);
-
+                kSize.Width = kSize.Height = (int)(sigma) % 2 == 0 ? (int)sigma + 1 : (int)sigma;
 
                 Console.WriteLine("sigma = " + sigma);
 
@@ -294,6 +330,38 @@ namespace ocv_myopie
 
 
             return mapMin + mapRange * ((value - currentMin) / currentRange);
+        }
+
+        private void btnSaveConfig_Click(object sender, EventArgs e)
+        {
+            
+            
+
+            if (!double.TryParse(txtDistanceReference.Text, out distanceReference)) return;
+            if (!double.TryParse(txtHauteurE.Text, out hauteurE)) return;
+
+            ratioReference = 6 / distanceReference;
+            diopDirty = true;
+        }
+
+        /// <summary>
+        ///  Calcul de la moyenne mobile
+        /// </summary>
+        const int DIM_FENETRE_MOY_MOBILE = 5;
+
+        List<int> values = new List<int>();
+
+        int runningAverage(int nouvelleValeur)
+        {
+            values.Add(nouvelleValeur);
+
+            if (values.Count > DIM_FENETRE_MOY_MOBILE)
+            {
+                values.RemoveAt(0);
+            }
+            
+            return (int)values.Average();
+
         }
     }
 }
